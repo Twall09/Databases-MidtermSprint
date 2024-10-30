@@ -14,6 +14,7 @@ const pool = new Pool({
  */
 async function createTable() {
   // TODO: Add code to create Movies, Customers, and Rentals tables
+  // Added in movie_id as the primary key
   const moviesTable = `
     CREATE TABLE IF NOT EXISTS Movies (
       movie_id SERIAL PRIMARY KEY,
@@ -22,6 +23,7 @@ async function createTable() {
       genre VARCHAR(50) NOT NULL,
       director VARCHAR(50) NOT NULL);`;
 
+  // Added in the customer_id as the primary key
   const customerTable = `
     CREATE TABLE IF NOT EXISTS Customers (
       customer_id SERIAL PRIMARY KEY,
@@ -30,6 +32,7 @@ async function createTable() {
       email VARCHAR(100) UNIQUE NOT NULL,
       phone_number VARCHAR(20));`;
 
+  // Added in the rental_id as the primary key
   const rentalTable = `
     CREATE TABLE IF NOT EXISTS Rentals (
       rental_id SERIAL PRIMARY KEY,
@@ -57,15 +60,15 @@ async function createTable() {
  * @param {string} genre Genre of the movie
  * @param {string} director Director of the movie
  */
-async function insertMovie(title, year, genre, director) {
+async function insertMovie(title, releaseYear, genre, director) {
   // TODO: Add code to insert a new movie into the Movies table
   const query = `
-  INSERT INTO Movies (title, year, genre, director)
+  INSERT INTO Movies (title, release_year, genre, director)
   VALUES ($1, $2, $3, $4) RETURNING *;`;
 
   // essentially a test
   try {
-    const res = await pool.query(query, [title, year, genre, director]);
+    const res = await pool.query(query, [title, releaseYear, genre, director]);
     console.log("Movie inserted: ", res.rows[0]);
   } catch (error) {
     console.error("Error inserting movie: ", error.message);
@@ -77,6 +80,69 @@ async function insertMovie(title, year, genre, director) {
  */
 async function displayMovies() {
   // TODO: Add code to retrieve and print all movies from the Movies table
+  const query = `SELECT * FROM Movies;`;
+  try {
+    const res = await pool.query(query);
+    console.log("Movies rendered: ");
+    res.rows.forEach((movie) => {
+      console.log(
+        `${movie.movie_id}: ${movie.title} (${movie.release_year}) - ${movie.genre}, directed by ${movie.director}`
+      );
+    });
+  } catch (error) {
+    console.error("Error displaying movies: ", error.message);
+  }
+}
+
+/**
+ * Inserts a new customer into the Customers table.
+ *
+ * @param {string} first_name customer first name
+ * @param {string} last_name customer last name
+ * @param {string} email customer email
+ * @param {string} phone_number customer phone number
+ */
+async function insertCustomer(firstName, lastName, email, phone) {
+  const query = `
+  INSERT INTO Customers (first_name, last_name, email, phone_number)
+  VALUES ($1, $2, $3, $4) RETURNING *;`;
+
+  try {
+    const res = await pool.query(query, [firstName, lastName, email, phone]);
+    console.log("Successfully inserted customer: ", res.rows[0]);
+  } catch (error) {
+    console.error("Error - cannot insert customer: ", error.message);
+  }
+}
+
+/**
+ * Inserts a new rental into the rentals table.
+ *
+ * @param {string} person_rented customer who rented
+ * @param {string} movie_rented the movie they rented
+ * @param {Date} rental_date date they rented
+ * @param {Date} return_date the return date
+ */
+async function insertRental(personRented, movieRented, rentalDate, returnDate) {
+  // after some confusion and research, I realized I had to convert the date to allow my entries to store in Postgres.
+  const formattedRentalDate = rentalDate.toISOString().split("T")[0];
+  const formattedReturnDate = returnDate.toISOString().split("T")[0];
+
+  const query = `
+  INSERT INTO Rentals (person_rented, movie_rented, rental_date, return_date)
+  VALUES ($1, $2, $3, $4) RETURNING *;`;
+
+  try {
+    const res = await pool.query(query, [
+      personRented,
+      movieRented,
+      formattedRentalDate,
+      formattedReturnDate,
+    ]);
+    console.log("Successfully inserted a rental: ", res.rows[0]);
+  } catch (error) {
+    console.error("Error - cannot insert a rental: ", error.message);
+  }
 }
 
 /**
@@ -87,6 +153,18 @@ async function displayMovies() {
  */
 async function updateCustomerEmail(customerId, newEmail) {
   // TODO: Add code to update a customer's email address
+  const query = `UPDATE Customers SET email = $1 WHERE customer_id = $2 RETURNING *;`;
+
+  try {
+    const res = await pool.query(query, [newEmail, customerId]);
+    if (res.rowCount > 0) {
+      console.log("Updated email address: ", res.rows[0]);
+    } else {
+      console.log("Error - Not a customer");
+    }
+  } catch (error) {
+    console.error("Error - Cannot update customers email.", error.message);
+  }
 }
 
 /**
@@ -96,6 +174,17 @@ async function updateCustomerEmail(customerId, newEmail) {
  */
 async function removeCustomer(customerId) {
   // TODO: Add code to remove a customer and their rental history
+  const query = `DELETE FROM Customers WHERE customer_id = $1 RETURNING *;`;
+  try {
+    const res = await pool.query(query, [customerId]);
+    if (res.rowCount > 0) {
+      console.log("Successfully removed customer!", res.rows[0]);
+    } else {
+      console.log("Error - Not a customer");
+    }
+  } catch (error) {
+    console.error("Failed to remove customer!", error.message);
+  }
 }
 
 /**
@@ -123,6 +212,22 @@ async function runCLI() {
         return;
       }
       await insertMovie(args[1], parseInt(args[2]), args[3], args[4]);
+      break;
+    case "insert_customer":
+      if (args.length !== 5) {
+        printHelp();
+        return;
+      }
+      await insertCustomer(args[1], args[2], args[3], args[4]);
+      break;
+    case "insert_rental":
+      if (args.length !== 5) {
+        printHelp();
+        return;
+      }
+      const rentalDate = new Date(args[3]);
+      const returnDate = new Date(args[4]);
+      await insertRental(args[1], args[2], rentalDate, returnDate);
       break;
     case "show":
       await displayMovies();
