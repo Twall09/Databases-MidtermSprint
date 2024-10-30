@@ -36,10 +36,12 @@ async function createTable() {
   const rentalTable = `
     CREATE TABLE IF NOT EXISTS Rentals (
       rental_id SERIAL PRIMARY KEY,
-      person_rented VARCHAR(50) NOT NULL,
-      movie_rented VARCHAR(75) NOT NULL,
+      customer_id INT NOT NULL,
+      movie_id INT NOT NULL,
       rental_date DATE DEFAULT CURRENT_DATE,
-      return_date DATE);`;
+      return_date DATE,
+      FOREIGN KEY (customer_id) REFERENCES Customers(customer_id),
+      FOREIGN KEY (movie_id) REFERENCES Movies(movie_id));`;
 
   // essentially a test
   try {
@@ -118,24 +120,26 @@ async function insertCustomer(firstName, lastName, email, phone) {
 /**
  * Inserts a new rental into the rentals table.
  *
- * @param {string} person_rented customer who rented
- * @param {string} movie_rented the movie they rented
- * @param {Date} rental_date date they rented
- * @param {Date} return_date the return date
+ * @param {string} customerId  customer who rented
+ * @param {string} movieId the movie they rented
+ * @param {Date} rentalDate date they rented
+ * @param {Date} returnDate the return date
  */
-async function insertRental(personRented, movieRented, rentalDate, returnDate) {
+async function insertRental(customerId, movieId, rentalDate, returnDate) {
   // after some confusion and research, I realized I had to convert the date to allow my entries to store in Postgres.
   const formattedRentalDate = rentalDate.toISOString().split("T")[0];
-  const formattedReturnDate = returnDate.toISOString().split("T")[0];
+  const formattedReturnDate = returnDate
+    ? returnDate.toISOString().split("T")[0]
+    : null;
 
   const query = `
-  INSERT INTO Rentals (person_rented, movie_rented, rental_date, return_date)
+  INSERT INTO Rentals (customer_id, movie_id, rental_date, return_date)
   VALUES ($1, $2, $3, $4) RETURNING *;`;
 
   try {
     const res = await pool.query(query, [
-      personRented,
-      movieRented,
+      customerId,
+      movieId,
       formattedRentalDate,
       formattedReturnDate,
     ]);
